@@ -10,6 +10,9 @@ entity forwarding_unit is
         ex_mem_rd        : in STD_LOGIC_VECTOR(4 downto 0);
         mem_wb_rd        : in STD_LOGIC_VECTOR(4 downto 0);
         id_ex_rs1        : in STD_LOGIC_VECTOR(4 downto 0);
+        -- To do the opcodes
+        id_ex_instr      : in STD_LOGIC_VECTOR(31 downto 0);
+        ex_mem_instr     : in STD_LOGIC_VECTOR(31 downto 0);
         -- need any other input or output registers?
         mux_select_A     : out STD_LOGIC_VECTOR(1 downto 0)
     );
@@ -17,8 +20,14 @@ end forwarding_unit;
 
 architecture Behavioral of forwarding_unit is
 
+   signal previous_opcode, current_opcode       : STD_LOGIC_VECTOR(6 downto 0);
+
 begin
-    process(ex_mem_reg_write, mem_wb_mem_read, mem_wb_load_addr, ex_mem_rd, mem_wb_rd, id_ex_rs1 -- any others?)
+
+    previous_opcode <= ex_mem_instr(6 downto 0);
+    current_opcode <= id_ex_instr(6 downto 0);
+
+    process(ex_mem_reg_write, mem_wb_mem_read, mem_wb_load_addr, ex_mem_rd, mem_wb_rd, id_ex_rs1, previous_opcode, current_opcode) -- any others?)
 begin
     -- mux to select alu input A (with forwarding)
     --    mux_select_A
@@ -31,11 +40,11 @@ begin
   mux_select_A <= "00";
 
   -- EX hazard
-  if <what control signals and opcodes?> then  -- alu to register case
+  if (id_ex_rs1 = ex_mem_rd) then  -- alu to register case (Addi -> LW) 
     mux_select_A <= "01";
-  elsif <what control signals and opcodes?> then  -- memory to register case
+  elsif ((previous_opcode = "0000011" and current_opcode = "0110011") or (previous_opcode = "0010011" and current_opcode = "1100011")) then  -- memory to register case (LW -> ADD) and (SUBI -> BNE)
     mux_select_A <= "10";
-  elsif <what control signals and opcodes?> then  -- load address to register case
+  elsif (current_opcode = "0010111") then  -- load address to register case
     mux_select_A <= "11";
   end if;
     end process;
