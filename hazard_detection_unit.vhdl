@@ -13,6 +13,7 @@ entity hazard_detection_unit is
         stall_counter  : in integer range 0 to 3 := 0;
         start_stall    : out STD_LOGIC;
         start_double   : out STD_LOGIC;
+        branch_fix     : out STD_LOGIC;
         double_stall   : out STD_LOGIC
     );
 end hazard_detection_unit;
@@ -71,8 +72,11 @@ begin
             else    
                 start_double <= '0';
             end if;
+        elsif (incoming_opcode = "1100011" and stall_counter = 0) then
+            branch_fix <= '1';
         else
             start_stall <= '0';
+            branch_fix <= '0';
         end if;
         -- Original Code from york
 --        elsif (stall_counter = 0 

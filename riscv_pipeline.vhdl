@@ -76,7 +76,7 @@ architecture Behavioral of riscv_pipeline is
     
      -- Additional signals
     signal not_equal_flag : STD_LOGIC;
-    signal stall, start_stall, start_double, double_stall        : STD_LOGIC;
+    signal stall, start_stall, start_double, double_stall, branch_fix        : STD_LOGIC;
     signal stall_counter : integer range 0 to 3 := 0;
     signal mux_select_A  : STD_LOGIC_VECTOR(1 downto 0) := (others => '0');
     signal mux_select_B  : STD_LOGIC_VECTOR(1 downto 0) := (others => '0');
@@ -255,6 +255,7 @@ architecture Behavioral of riscv_pipeline is
             stall_counter  : in integer range 0 to 3 := 0;
             start_stall    : out STD_LOGIC;
             start_double   : out STD_LOGIC;
+            branch_fix     : out STD_LOGIC;
             double_stall   : out STD_LOGIC
         );
     end component;
@@ -445,6 +446,7 @@ begin
             stall_counter  => stall_counter,
             start_stall    => start_stall,
             start_double   => start_double,
+            branch_fix     => branch_fix,
             double_stall   => double_stall
         );
     -- temporary test... stall each instruction 3 cycles
@@ -467,6 +469,8 @@ begin
                 --stall_counter <= 3;
                 --stall_counter <= 2;  -- needed to support BNE [after previous stall]
                 --stall_counter <= 1;
+             elsif (branch_fix = '1') then
+                    stall_counter <= 1;
             end if;
         end if;
     end process;
@@ -521,8 +525,8 @@ begin
     -- Comparator 
     not_equal_flag <= '1' when (ex_mem_alu_result /= if_id_reg2_data) else '0';
                                         
-    next_pc <=  pc when (start_stall = '1' or stall_counter > 1) else   -- stall case, single and double
-                std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_branch = '1' and not_equal_flag = '1') else -- branch case, single stall
+    next_pc <=  pc when (start_stall = '1' or stall_counter > 1 or branch_fix = '1') else   -- stall case, single and double
+                std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_branch = '1' and not_equal_flag = '1' and reg_write = '0') else -- branch case, single stall
                 std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_jump = '1') else  -- jump case
                 NPC;    
                 
