@@ -134,10 +134,8 @@
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
       </File>
-      <File Path="$PSRCDIR/sources_1/imports/ece485_final_cadet_stage1/instr_mem.vhdl">
+      <File Path="$PPRDIR/../../Users/C26Alexander.Sick/Downloads/instr_mem.vhdl">
         <FileInfo>
-          <Attr Name="ImportPath" Val="$PPRDIR/../ece485_final_cadet_stage1/instr_mem.vhdl"/>
-          <Attr Name="ImportTime" Val="1778214802"/>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="simulation"/>
         </FileInfo>
