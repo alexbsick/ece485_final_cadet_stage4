@@ -66,7 +66,7 @@ entity pipeline_registers is
         ex_mem_mem_read : inout STD_LOGIC;
         ex_mem_mem_write : inout STD_LOGIC;
         ex_mem_branch : out STD_LOGIC;
-        ex_mem_jump : out STD_LOGIC;
+        ex_mem_jump : inout STD_LOGIC;
         ex_mem_load_addr : inout STD_LOGIC;
         ex_mem_npc    : out STD_LOGIC_VECTOR(31 downto 0);
         ex_mem_rd   : inout STD_LOGIC_VECTOR(4 downto 0);
@@ -80,6 +80,7 @@ entity pipeline_registers is
         mem_wb_alu_src : out STD_LOGIC;
         mem_wb_mem_read : out STD_LOGIC;
         mem_wb_mem_write : out STD_LOGIC;
+        mem_wb_jump : out STD_LOGIC;
         mem_wb_load_addr : out STD_LOGIC;
         mem_wb_rd   : out STD_LOGIC_VECTOR(4 downto 0);
         mem_wb_alu_result  : out STD_LOGIC_VECTOR(31 downto 0)      
@@ -137,13 +138,14 @@ begin
             mem_wb_alu_src <= '0';
             mem_wb_mem_read <= '0';
             mem_wb_mem_write <= '0';
+            mem_wb_jump <= '0';
             mem_wb_load_addr <= '0';
             mem_wb_alu_result <= (others => '0');
             mem_wb_rd   <= (others => '0');
 
         elsif rising_edge(clk) then    
                 
-            if (start_stall = '1' or stall_counter > 1) then  -- if stall, then insert a NOP
+            if (start_stall = '1') then  -- if stall, then insert a NOP
                 if_id_reg_write <= '0';
                 if_id_alu_src <= '0';
                 if_id_mem_read <= '0';
@@ -213,6 +215,7 @@ begin
             mem_wb_alu_src <= ex_mem_alu_src;
             mem_wb_mem_read <= ex_mem_mem_read;
             mem_wb_mem_write <= ex_mem_mem_write;
+            mem_wb_jump <= ex_mem_jump;
             mem_wb_load_addr <= ex_mem_load_addr;
             mem_wb_rd   <= ex_mem_rd;       
             mem_wb_alu_result  <= ex_mem_alu_result;

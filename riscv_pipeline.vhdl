@@ -76,7 +76,7 @@ architecture Behavioral of riscv_pipeline is
     
      -- Additional signals
     signal not_equal_flag : STD_LOGIC;
-    signal stall, start_stall, double_stall        : STD_LOGIC;
+    signal stall, start_stall, start_double, double_stall        : STD_LOGIC;
     signal stall_counter : integer range 0 to 3 := 0;
     signal mux_select_A  : STD_LOGIC_VECTOR(1 downto 0) := (others => '0');
     signal mux_select_B  : STD_LOGIC_VECTOR(1 downto 0) := (others => '0');
@@ -221,7 +221,7 @@ architecture Behavioral of riscv_pipeline is
         ex_mem_mem_read : inout STD_LOGIC;
         ex_mem_mem_write : inout STD_LOGIC;
         ex_mem_branch : out STD_LOGIC;
-        ex_mem_jump : out STD_LOGIC;
+        ex_mem_jump : inout STD_LOGIC;
         ex_mem_load_addr : inout STD_LOGIC;
         ex_mem_npc    : out STD_LOGIC_VECTOR(31 downto 0);
         ex_mem_rd   : inout STD_LOGIC_VECTOR(4 downto 0);
@@ -235,6 +235,7 @@ architecture Behavioral of riscv_pipeline is
         mem_wb_alu_src : out STD_LOGIC;
         mem_wb_mem_read : out STD_LOGIC;
         mem_wb_mem_write : out STD_LOGIC;
+        mem_wb_jump : out STD_LOGIC;
         mem_wb_load_addr : out STD_LOGIC;
         mem_wb_rd   : out STD_LOGIC_VECTOR(4 downto 0);
         mem_wb_alu_result  : out STD_LOGIC_VECTOR(31 downto 0)      
@@ -253,6 +254,7 @@ architecture Behavioral of riscv_pipeline is
             jump           : in STD_LOGIC;
             stall_counter  : in integer range 0 to 3 := 0;
             start_stall    : out STD_LOGIC;
+            start_double   : out STD_LOGIC;
             double_stall   : out STD_LOGIC
         );
     end component;
@@ -260,6 +262,7 @@ architecture Behavioral of riscv_pipeline is
     component forwarding_unit is
       Port (
         ex_mem_reg_write : in STD_LOGIC;
+        mem_wb_reg_write : in STD_LOGIC;
         mem_wb_mem_read  : in STD_LOGIC;
         mem_wb_load_addr : in STD_LOGIC;
         ex_mem_rd        : in STD_LOGIC_VECTOR(4 downto 0);
@@ -376,6 +379,7 @@ begin
             mem_wb_alu_src => mem_wb_alu_src,
             mem_wb_mem_read => mem_wb_mem_read,
             mem_wb_mem_write => mem_wb_mem_write,
+            mem_wb_jump => mem_wb_jump,
             mem_wb_load_addr => mem_wb_load_addr,
             mem_wb_rd   => mem_wb_rd,
             mem_wb_alu_result  => mem_wb_alu_result
@@ -440,12 +444,13 @@ begin
             jump => jump,
             stall_counter  => stall_counter,
             start_stall    => start_stall,
+            start_double   => start_double,
             double_stall   => double_stall
         );
     -- temporary test... stall each instruction 3 cycles
     --start_stall <= '1' when stall_counter = 0 else '0';
         
-    -- Stall counter process
+    -- Stall counter process - FIX THIS!
     process(clk)
     begin
         if rising_edge(clk) then
@@ -454,25 +459,27 @@ begin
              elsif stall_counter > 0 then
                     stall_counter <= stall_counter - 1;
              elsif start_stall = '1' then
---                if (double_stall = '1') then
---                    stall_counter <= 2;
---                else
---                    stall_counter <= 1;
---                end if;
+                if (start_double = '1') then
+                    stall_counter <= 2;
+                else
+                    stall_counter <= 1;
+                end if;
                 --stall_counter <= 3;
                 --stall_counter <= 2;  -- needed to support BNE [after previous stall]
-                stall_counter <= 1;
+                --stall_counter <= 1;
             end if;
         end if;
     end process;
 
     -- Stall signal
-    stall <= '1' when stall_counter > 0 else '0';        
+    stall <= '1' when stall_counter > 0 else '0';
+    double_stall <= '1' when (instr(7 downto 0) = "1100011") else '0';        
         
     -- forwarding unit
     forward_unit: forwarding_unit
         port map (
             ex_mem_reg_write => ex_mem_reg_write,
+            mem_wb_reg_write => mem_wb_reg_write,
             mem_wb_mem_read  => mem_wb_mem_read,
             mem_wb_load_addr => mem_wb_load_addr,
             ex_mem_rd        => ex_mem_rd,
@@ -487,6 +494,8 @@ begin
 --------------------------------------------------------------------------------
     -- ID units
     -- Register file [used in ID and WB stages]
+    if_id_rs1 <= if_id_instr(19 downto 15);
+    if_id_rs2 <= if_id_instr(24 downto 20);
 	reg_write_chip <= mem_wb_reg_write;
     reg_file_inst: reg_file
         port map (
@@ -510,11 +519,10 @@ begin
             );
            
     -- Comparator 
-    not_equal_flag <= '1' when (if_id_reg1_data /= if_id_reg2_data) else '0';
+    not_equal_flag <= '1' when (ex_mem_alu_result /= if_id_reg2_data) else '0';
                                         
     next_pc <=  pc when (start_stall = '1' or stall_counter > 1) else   -- stall case, single and double
-                std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_branch = '1' and not_equal_flag = '1' and stall_counter = 0) else -- branch case, single stall
-                std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_branch = '1' and not_equal_flag = '1' and stall_counter > 1) else -- branch case, double stall
+                std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_branch = '1' and not_equal_flag = '1') else -- branch case, single stall
                 std_logic_vector(signed(if_id_npc) + signed(if_id_imm)) when (if_id_jump = '1') else  -- jump case
                 NPC;    
                 
@@ -531,8 +539,8 @@ begin
     --       11 forward from custom LoadAddr
     
     alu_input_a <= id_ex_reg1_data when mux_select_A = "00" else
-                   alu_result when mux_select_A = "01" else
-                   mem_data when mux_select_A = "10" else
+                   ex_mem_alu_result when mux_select_A = "01" else
+                   mem_wb_mem_data when mux_select_A = "10" else
                    x"10000000";            
             
     -- mux to select alu input B (not used for forwarding for this program)
